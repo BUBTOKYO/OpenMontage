@@ -279,6 +279,11 @@ interface Overlay {
   providers?: string[];
   cycleSeconds?: number;
   label?: string;
+  // section_title styling overrides
+  fontSize?: number;
+  fontFamily?: string;
+  backgroundColor?: string;
+  padding?: number;
 }
 
 interface AudioLayer {
@@ -304,6 +309,14 @@ export interface ExplainerProps {
   cuts: Cut[];
   overlays?: Overlay[];
   captions?: WordCaption[];
+  // Optional caption styling. Defaults match the original landscape layout;
+  // CJK videos pass captionWordSeparator="" and vertical videos a larger
+  // captionBottomPadding.
+  captionWordsPerPage?: number;
+  captionFontSize?: number;
+  captionFontFamily?: string;
+  captionWordSeparator?: string;
+  captionBottomPadding?: number;
   audio?: AudioConfig;
 }
 
@@ -787,6 +800,10 @@ const OverlayRenderer: React.FC<{ overlay: Overlay; theme: ThemeConfig }> = ({
         accentColor={overlay.accentColor || theme.accentColor}
         textColor={theme.textColor}
         position={(overlay.position as any) || "top-left"}
+        fontSize={overlay.fontSize}
+        fontFamily={overlay.fontFamily}
+        backgroundColor={overlay.backgroundColor}
+        padding={overlay.padding}
       />
     );
   }
@@ -873,8 +890,11 @@ export const Explainer: React.FC<ExplainerProps> = (props) => {
       {captions && captions.length > 0 && (
         <CaptionOverlay
           words={captions}
-          wordsPerPage={6}
-          fontSize={42}
+          wordsPerPage={props.captionWordsPerPage ?? 6}
+          fontSize={props.captionFontSize ?? 42}
+          fontFamily={props.captionFontFamily}
+          wordSeparator={props.captionWordSeparator}
+          bottomPadding={props.captionBottomPadding}
           color={theme.textColor}
           highlightColor={theme.captionHighlightColor}
           backgroundColor={theme.captionBackgroundColor}
