@@ -100,6 +100,8 @@ For each script section:
 
 **Pronunciation guide**: If the script contains technical terms, jargon, or names with non-obvious pronunciation, include a pronunciation map in the TTS request.
 
+**Japanese narration**: pass `language_code: "ja"` (and `with_timestamps: true` for captions) to `elevenlabs_tts`. Readings are corrected automatically — see "Japanese Readings" in `skills/meta/voice-performance-director.md`. Build captions from `data.display_alignment`, and resolve every entry in `data.reading_fix.unknown_readings` with a `pronunciation_ja.yaml` entry before batching.
+
 **Flat voice failure:** If the approved voice sounds monotone, robotic, rushed,
 or ignores intended pauses, do not batch the remaining sections. Revise the
 `voice_performance` plan or provider parameters and regenerate the sample.

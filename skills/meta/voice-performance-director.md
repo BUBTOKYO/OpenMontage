@@ -69,6 +69,25 @@ Section-level delivery cues:
 - Offline/basic voices: rely on punctuation, shorter sentences, and explicit
   segment splitting because provider-level emotion controls may be unavailable.
 
+## Japanese Readings
+
+Japanese TTS voices misread kanji and digits (朝 as ちょう, ステップ1 as "one").
+`elevenlabs_tts` corrects this automatically when `language_code` is `ja`
+(`reading_fix: "auto"`, see `lib/ja_reading.py`): kanji words and numbers are
+sent as kana from the pronunciation dictionaries and the janome analyser, with
+counter euphony (1か所 → いっかしょ). The written text is unchanged.
+
+- Do not hand-write kana into `text` or `provider_text` — keep the written form;
+  the tool converts it. Use the returned `display_alignment` (written-text
+  timings) for captions, not the raw `alignment` of the spoken kana.
+- Check `data.reading_fix.unknown_readings` after each call; any word listed
+  there was sent as written and needs a dictionary entry.
+- When a reviewer reports a misread, add `written: reading` to
+  `projects/<id>/pronunciation_ja.yaml` (this video only; picked up from the
+  output path) or to the shared `lib/pronunciation_ja.yaml` (every video —
+  brand/product names, words the analyser gets wrong), then regenerate.
+- Set `reading_fix: "off"` only for deliberately non-standard readings.
+
 ## Sample Gate
 
 Before batch narration generation:

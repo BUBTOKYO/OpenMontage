@@ -1,0 +1,25 @@
+# Shared Japanese pronunciation dictionary for TTS (lib/ja_reading.py).
+#
+# written: reading   — the reading is what the voice says; captions keep the
+# written form. Entries match whole morphemes, so "朝" does not fire inside
+# "朝食". Use this file for corrections that hold in every video (brand and
+# product names, words the analyser gets wrong); put one-off readings in
+# projects/<id>/pronunciation_ja.yaml, which overrides this file.
+#
+# Add an entry whenever a reviewer reports a misread narration.
+
+# Corrections reported on korean-morning-skincare-order (2026-10).
+朝: あさ
+肌: はだ
+洗顔: せんがん
+水っぽい: みずっぽい
+
+# Beauty vocabulary that analysers or TTS voices tend to misread.
+化粧水: けしょうすい
+美容液: びようえき
+乳液: にゅうえき
+下地: したじ
+日焼け止め: ひやけどめ
+毛穴: けあな
+角質: かくしつ
+保湿: ほしつ

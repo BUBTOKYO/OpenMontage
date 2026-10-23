@@ -106,3 +106,42 @@ def test_words_from_alignment_handles_multichar_entries():
 def test_with_timestamps_is_part_of_idempotency_key():
     assert "with_timestamps" in ElevenLabsTTS.idempotency_key_fields
     assert ElevenLabsTTS.input_schema["properties"]["with_timestamps"]["default"] is False
+
+
+def test_japanese_text_is_sent_as_kana_and_captions_keep_written_form(monkeypatch, tmp_path):
+    pytest = __import__("pytest")
+    pytest.importorskip("janome")
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test")
+    written = "朝のステップ1"
+    spoken = "あさのステップいち"
+    post = Mock(return_value=_json_response(spoken, b"ID3fake-mp3"))
+    monkeypatch.setattr("requests.post", post)
+
+    result = ElevenLabsTTS().execute(
+        {"text": written, "language_code": "ja", "with_timestamps": True,
+         "output_path": str(tmp_path / "n.mp3")}
+    )
+
+    assert result.success, result.error
+    assert post.call_args.kwargs["json"]["text"] == spoken
+    assert result.data["spoken_text"] == spoken
+    assert result.data["alignment_matches_text"] is True
+    shown = result.data["display_alignment"]
+    assert "".join(shown["characters"]) == written
+    assert shown["character_end_times_seconds"][0] == 0.2  # 朝 spans あさ
+    saved = json.loads((tmp_path / "n.mp3.alignment.json").read_text(encoding="utf-8"))
+    assert saved["text"] == written and saved["spoken_text"] == spoken
+
+
+def test_reading_fix_off_sends_text_unchanged(monkeypatch, tmp_path):
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "test")
+    post = Mock(return_value=Mock(content=b"ID3", headers={}))
+    monkeypatch.setattr("requests.post", post)
+
+    result = ElevenLabsTTS().execute(
+        {"text": "朝の肌", "language_code": "ja", "reading_fix": "off", "output_path": str(tmp_path / "n.mp3")}
+    )
+
+    assert result.success, result.error
+    assert post.call_args.kwargs["json"]["text"] == "朝の肌"
+    assert "spoken_text" not in result.data

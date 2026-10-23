@@ -1,5 +1,6 @@
 # OpenMontage - Core Dependencies
 pyyaml>=6.0
+janome>=0.5     # Japanese morphological analysis for TTS reading correction (lib/ja_reading.py)
 pydantic>=2.0
 jsonschema>=4.20
 python-dotenv>=1.0

@@ -145,6 +145,28 @@ class ElevenLabsTTS(BaseTool):
                 "default": "mp3_44100_128",
                 "enum": ["mp3_44100_128", "mp3_44100_192", "pcm_16000", "pcm_24000"],
             },
+            "reading_fix": {
+                "type": "string",
+                "enum": ["auto", "off"],
+                "default": "auto",
+                "description": (
+                    "Japanese reading correction (lib/ja_reading.py). 'auto' applies it when "
+                    "language_code is ja (or, without a language_code, when the text contains "
+                    "kana): kanji words and numbers are sent as kana from the pronunciation "
+                    "dictionaries and the morphological analyser, so the voice cannot misread "
+                    "them. The written text is kept for captions; see data.reading_fix and "
+                    "display_alignment."
+                ),
+            },
+            "pronunciation_dictionaries": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": (
+                    "Extra YAML dictionaries (written: reading) applied on top of the shared "
+                    "lib/pronunciation_ja.yaml. A projects/<id>/pronunciation_ja.yaml above "
+                    "output_path is picked up automatically."
+                ),
+            },
             "with_timestamps": {
                 "type": "boolean",
                 "default": False,
@@ -180,6 +202,8 @@ class ElevenLabsTTS(BaseTool):
         "next_request_ids",
         "output_format",
         "with_timestamps",
+        "reading_fix",
+        "pronunciation_dictionaries",
     ]
     side_effects = ["writes audio file to output_path", "calls ElevenLabs API"]
     user_visible_verification = ["Listen to generated audio for natural speech quality"]
@@ -248,7 +272,12 @@ class ElevenLabsTTS(BaseTool):
             "use_speaker_boost": inputs.get("use_speaker_boost", True),
         }
 
-        payload = {"text": text, "model_id": model_id, "voice_settings": voice_settings}
+        spoken = self._spoken_text(inputs)
+        payload = {
+            "text": spoken.spoken if spoken else text,
+            "model_id": model_id,
+            "voice_settings": voice_settings,
+        }
         for field in (
             "seed",
             "language_code",
@@ -304,20 +333,30 @@ class ElevenLabsTTS(BaseTool):
         if with_timestamps:
             if not alignment:
                 raise ValueError("ElevenLabs returned no alignment for a with-timestamps request")
-            words = self.words_from_alignment(alignment)
+            sent = payload["text"]
+            shown = None
+            if spoken:
+                from lib.ja_reading import display_alignment
+
+                shown = display_alignment(alignment, spoken)
+            words = self.words_from_alignment(shown or alignment)
+            saved = {"text": text, "alignment": alignment, "words": words}
+            if spoken:
+                saved.update(spoken_text=sent, display_alignment=shown)
             alignment_path = output_path.with_name(output_path.name + ".alignment.json")
-            alignment_path.write_text(
-                json.dumps({"text": text, "alignment": alignment, "words": words}, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            alignment_path.write_text(json.dumps(saved, ensure_ascii=False), encoding="utf-8")
             artifacts.append(str(alignment_path))
             extra = {
                 "word_timestamps": words,
                 "alignment_path": str(alignment_path),
                 # False when the service normalised the text (numbers, symbols); timings
                 # then refer to the spoken form returned in the alignment.
-                "alignment_matches_text": "".join(alignment["characters"]) == text,
+                "alignment_matches_text": "".join(alignment["characters"]) == sent,
             }
+            if spoken:
+                # Timings of the written text, for captions. None when the service
+                # normalised the spoken text and characters can no longer be mapped.
+                extra["display_alignment"] = shown
 
         return ToolResult(
             success=True,
@@ -330,11 +369,30 @@ class ElevenLabsTTS(BaseTool):
                 "output": str(output_path),
                 "format": output_format,
                 "request_id": response.headers.get("request-id"),
+                **({"spoken_text": spoken.spoken, "reading_fix": {
+                    "replacements": spoken.replacements,
+                    "unknown_readings": spoken.unknown,
+                }} if spoken else {}),
                 **extra,
             },
             artifacts=artifacts,
             model=model_id,
         )
+
+    @staticmethod
+    def _spoken_text(inputs: dict[str, Any]):
+        """Kana-corrected text to send for Japanese narration, or None."""
+        if inputs.get("reading_fix", "auto") == "off":
+            return None
+        from lib import ja_reading
+
+        if not ja_reading.needs_reading_fix(inputs["text"], inputs.get("language_code")):
+            return None
+        paths = list(inputs.get("pronunciation_dictionaries") or [])
+        project = ja_reading.find_project_dictionary(inputs.get("output_path"))
+        if project:
+            paths.insert(0, project)
+        return ja_reading.to_spoken(inputs["text"], ja_reading.load_dictionaries(paths))
 
     @staticmethod
     def words_from_alignment(alignment: dict[str, Any]) -> list[dict[str, Any]]:
